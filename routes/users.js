@@ -3,6 +3,7 @@ const User = require('../models').User;
 const router = express.Router();
 const nodemailer = require("nodemailer");
 var generator = require('generate-password');
+const { v4: uuidv4 } = require('uuid');
 
 let transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -11,6 +12,34 @@ let transporter = nodemailer.createTransport({
     pass: 'iloveboba123'
   }
 });
+
+function sendVerificationMail(email, verification_id) {
+  var link = "http://localhost:8080/#/verify?verification_id=" + verification_id
+  var mailOptions = {
+    from: 'helen.nbv2@gmail.com',
+    to: email,
+    subject: 'Please Verify Your NB V2 Account',
+    // text: 'Hello there!' + 
+    // '\n\nThank you for contacting us.' + 
+    // '\n\nPlease verify this email (prferably within 24 hours) by clicking on this link: ' + 
+    // '\n\nhttps://nb.edu/verify? ' + verification_id +
+    // '\n\nPlease login again if you need to resend a verification link.' + 
+    // '\n\nIf you believe that this is a mistake, please contact us at nb@mit.edu.',
+    html: "Hello there!<br><br>Thank you for contacting us.<br><br>" +
+    "Please verify this email (preferably within 24 hours) by clicking on this " +
+    '<a href="' + link + '">link</a>.<br><br>'+
+    'If you believe that this is a mistake, please contact us at nb@mit.edu<br><br>' +
+    'Best,<br>NB V2 Team'
+  };
+  transporter.sendMail(mailOptions, function(error, info){
+    if (error) {
+      console.log(error);
+    } else {
+      console.log('Email sent: ' + info.response);
+      res.status(200).json({email: email});
+    }
+  });
+}
 
 /**
  * Get active user.
@@ -93,15 +122,95 @@ router.post('/forgotpassword', (req, res) => {
 })
 
 router.post('/register', (req, res) => {
+  var verificationId = uuidv4();
   User.create({
     username: req.body.username,
     first_name: req.body.first,
     last_name: req.body.last,
     email: req.body.email,
-    password: req.body.password
+    password: req.body.password,
+    verification_id: verificationId,
+    account_verified: false
   }).then(() => {
+    var link = "http://localhost:8080/#/verify?verification_id=" + verificationId
+    var mailOptions = {
+      from: 'helen.nbv2@gmail.com',
+      to: req.body.email,
+      subject: 'NB V2 - Welcome',
+      // text: 'Welcome to NB!' + 
+      // '\n\nHere are some tutorial guidelines and links: ' + 
+      // '\n\nPlease verify this email (prferably within 24 hours) by clicking on this link: ' + 
+      // '\n\nhttps://nb.edu/verify? ' + verificationId +
+      // '\n\nPlease login again if you need to resend a verification link.' + 
+      // '\n\nIf you believe that this is a mistake, please contact us at nb@mit.edu.',
+      html: "Welcome to NB V2!<br><br>Thank you for registering for an account.<br><br>" +
+      "Here are some tutorial guidelines and links: <br><br>" +
+      "Please verify this email (preferably within 24 hours) by clicking on this " +
+      '<a href="' + link + '">link</a>.<br><br>'+
+      'If you believe that this is a mistake, please contact us at nb@mit.edu<br><br>' +
+      'Best,<br>NB V2 Team'
+    };
+
+    transporter.sendMail(mailOptions, function(error, info){
+      if (error) {
+        console.log(error);
+      } else {
+        console.log('Email sent: ' + info.response);
+        res.status(200).json({email: req.body.email});
+      }
+    });
     res.status(200).json({msg: "registered"});
   }).catch((err)=>{
+    console.log(err)
+      res.status(400).json({msg: "cannot send registration activate account link error."})
+  });
+})
+
+router.post('/resendVerification', (req, res) => {
+  if (!req.session.userId){
+    res.status(200).json(null);
+    return null;
+  }
+  User.findByPk(req.session.userId,{attributes: ['id', 'username', 'name', 'email', 'verification_id']}).then((user) => {
+    if (!user) {
+      res.status(401).json({msg: "Cannot find user "})
+    } else {
+      var verificationId = uuidv4();
+      if (user.verification_id == null) {
+        user.update({
+          verification_id: verificationId
+        }).then(() => {
+          sendVerificationMail(user.email, user.verification_id);
+        }).catch((err) => {
+          res.status(400).json({msg: "Error creating verification code."})
+        })
+      } else {
+        sendVerificationMail(user.email, user.verification_id);
+      }
+      res.status(200).json({msg: "registered"});
+    }
+  })
+})
+
+router.put('/verify', (req, res) => {
+  console.log(req.body);
+  User.findOne({ where: { verification_id: req.body.verification_id }}).then(function (user) {
+    if (!user) {
+      res.status(401).json({msg: "No user found for this verification id"});
+    } else {
+      user.update({
+        account_verified: true
+      }).then(() => {
+        console.log("done!");
+        console.log(user);
+        res.status(200).json({msg: "Account verified"})
+      }).catch((err) => {
+        res.status(400).json({msg: "Error verifying account"})
+      })
+    }
+  })
+})  
+
 router.put('/editPersonal', (req, res) => {
   // find the current user first
   if (!req.session.userId){
@@ -144,7 +253,7 @@ router.put('/editAuth', (req, res) => {
       }).then(() => {
         res.status(200).json({msg: "editted auth password"})
       }).catch((err) => {
-    console.log("error:" + err);
+        console.log("error:" + err);
         res.status(400).json({msg: "Error editting password"})
       })
     }

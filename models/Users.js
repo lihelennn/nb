@@ -35,6 +35,15 @@ const user = (sequelize, DataTypes) => {
         isEmail: true
       }
     },
+    verification_id: {
+      type: DataTypes.UUID,
+      unique: true
+    },
+    account_verified: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    }
   },
   {
     classMethods:{

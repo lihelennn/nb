@@ -11,6 +11,13 @@ export default new Router({
       component: () => import('./views/TopPage.vue')
     },
     {
+      path: '/verify',
+      name: 'verify-page',
+      component: () => import('./views/Verify.vue'),
+      props: route => ({ verification_id: route.query.verification_id })
+
+    },
+    {
       path: '/home',
       name: 'home-page',
       props: { default: true },
