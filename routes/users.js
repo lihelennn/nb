@@ -1,6 +1,16 @@
 const express = require('express');
 const User = require('../models').User;
 const router = express.Router();
+const nodemailer = require("nodemailer");
+var generator = require('generate-password');
+
+let transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: 'helen.nbv2@gmail.com',
+    pass: 'iloveboba123'
+  }
+});
 
 /**
  * Get active user.
@@ -44,6 +54,43 @@ router.post('/login', (req, res) => {
     }
   });
 });
+
+router.post('/forgotpassword', (req, res) => {
+  // create reusable transporter object using the default SMTP transport
+    // Generate test SMTP service account from ethereal.email
+  // Only needed if you don't have a real mail account for testing
+  var password = generator.generate({
+    length: 20,
+    numbers: true,
+  });
+  User.findOne({ where: { email: req.body.email }}).then(function (user) {
+    if (!user) {
+      res.status(401).json({msg: "No user with email " + req.body.email});
+    } else {
+      user.update({
+        password: password
+      })
+      var mailOptions = {
+        from: 'helen.nbv2@gmail.com',
+        to: req.body.email,
+        subject: 'NB V2 - Forgot Your Password',
+        text: 'Hello!\n\nYou indicated that you have forgotten your password for NB V2.' + 
+        '\n\nHere is your temporary password: \n' + password + 
+        '\n\nBe sure to change your password to a secure password after recovering your account.' + 
+        '\n\nIf you believe that this is a mistake, please contact us at nb@mit.edu or change your password on your user settings page.'
+      };
+  
+      transporter.sendMail(mailOptions, function(error, info){
+        if (error) {
+          console.log(error);
+        } else {
+          console.log('Email sent: ' + info.response);
+          res.status(200).json({email: req.body.email});
+        }
+      });
+    }
+  });
+})
 
 router.post('/register', (req, res) => {
   User.create({
