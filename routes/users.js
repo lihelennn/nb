@@ -1,17 +1,10 @@
 const express = require('express');
 const User = require('../models').User;
 const router = express.Router();
-const nodemailer = require("nodemailer");
 var generator = require('generate-password');
-const { v4: uuidv4 } = require('uuid');
+const transporter = require('../email-config');
 
-let transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: 'helen.nbv2@gmail.com',
-    pass: 'iloveboba123'
-  }
-});
+const { v4: uuidv4 } = require('uuid');
 
 function sendVerificationMail(email, verification_id) {
   var link = "http://localhost:8080/#/verify?verification_id=" + verification_id
