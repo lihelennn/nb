@@ -4,6 +4,7 @@ const Class = require('../models').Class;
 const Source = require('../models').Source;
 const Section = require('../models').Section;
 const utils = require('../models/utils')(require('../models'));
+const { v4: uuidv4 } = require('uuid');
 const multer  = require('multer');
 const csv = require('csv-parser')
 const fs = require('fs')
@@ -103,7 +104,7 @@ router.get('/student', (req,res) =>{
 
 /**
  * Get all instructors for a given class
- * @name GET/api/classes/studentList/:id
+ * @name GET/api/classes/instructorList/:id
  * @param id: id of the class
  */
 router.get('/instructorList/:id', (req,res) =>{
@@ -246,32 +247,75 @@ router.post('/upload/:id', upload.single("file"), function(req, res) {
       res.status(401).json(null);
     } else {
       const results = [];
+      // const new_students_to_invite = [];
+      let count = 0;
       fs.createReadStream(req.file.path)
       .pipe(stripBomStream()) // Remove Byte Order Marks (BOM) that might be present in some CSV format files such as Excel
       .pipe(csv())
       .on('data', (data) => results.push(data))
       .on('end', () => {
-        Promise.all(results.forEach(student_entry => {
+        results.forEach(student_entry => {
+          console.log(student_entry)
           if (student_entry["Email"] !== "") {
-            User.create({
-              username: student_entry["Email"],
-              first_name: student_entry["First"],
-              last_name: student_entry["Last"],
-              email: student_entry["Email"],
-              password: randomstring.generate(),
-            }).then((user) => {
-              utils.addStudentToSection(req.params.id, user, student_entry['Section']);
-            }).catch((err)=>{
-              User.findOne({ where: { email: student_entry["Email"] }}).then(function (user) {
-                if (user) {
-                  utils.addStudentToSection(req.params.id, user, student_entry['Section'])
-                } 
-              });
+
+            User.findOne({ where: { email: student_entry["Email"] }}).then(function (user) {
+              if (user) {
+                utils.addStudentToSection(req.params.id, user, student_entry['Section']);
+              } else {
+                User.create({
+                  username: student_entry["Email"],
+                  first_name: student_entry["First"],
+                  last_name: student_entry["Last"],
+                  email: student_entry["Email"],
+                  password: randomstring.generate(),
+                  reset_password_id: uuidv4(), // using the reset pw id to invite students upon csv upload
+                }).then((user) => {
+                  utils.addStudentToSection(req.params.id, user, student_entry['Section']);
+                  // utils.inviteStudentEmail(user, nb_class, req.headers.origin)
+                });
+              }
             })
+          } 
+          count = count + 1;
+          
+          if (count == results.length) { // we've added everyone
+            res.status(200).json(null);
           }
-        }))
-        .then(() => {res.status(200).json(null);})
-        .catch((err) => { res.status(200).json(null);}); 
+        })
+        // Promise.all(results.forEach(student_entry => {
+        //   console.log(student_entry)
+        //   if (student_entry["Email"] !== "") {
+
+        //     User.findOne({ where: { email: student_entry["Email"] }}).then(function (user) {
+        //       if (user) {
+        //         utils.addStudentToSection(req.params.id, user, student_entry['Section'])
+        //       } else {
+        //         User.create({
+        //           username: student_entry["Email"],
+        //           first_name: student_entry["First"],
+        //           last_name: student_entry["Last"],
+        //           email: student_entry["Email"],
+        //           password: randomstring.generate(),
+        //           reset_password_id: uuidv4(), // using the reset pw id to invite students upon csv upload
+        //         }).then((user) => {
+        //           new_students_to_invite.push(user)
+        //           utils.addStudentToSection(req.params.id, user, student_entry['Section']);
+        //         });
+        //       }
+        //     })
+        //   }
+        // }))
+        // .then(() => {
+        //   console.log(new_students_to_invite)
+        //   new_students_to_invite.forEach(user => { // invite after all sections are created; it's ok if these emails are a little delayed, but we don't want to delay csv upload response
+        //     utils.inviteStudentEmail(user, nb_class)
+        //   });
+        //   res.status(200).json(null);
+        // })
+        // .catch((err) => { 
+        //   console.log(err)
+        //   res.status(200).json(null);
+        // }); 
       })
     }
   });

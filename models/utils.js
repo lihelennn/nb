@@ -1,4 +1,5 @@
 const nb_class = require("./Classes/Classes");
+const transporter = require('../email-config');
 
 module.exports = function(models){
   const User = models.User;
@@ -167,6 +168,25 @@ module.exports = function(models){
       );
     },
 
-    
+    inviteStudentEmail: function(user, nb_class, origin) {
+      var link = origin + "/#/invite?id=" + user.reset_password_id; // using the reset pw id to invite students upon csv upload
+      var mailOptions = {
+        from: 'nbv2.mailer@gmail.com',
+        to: user.email,
+        subject: 'NB V2 - Welcome to NB',
+        text: 'Hello, and welcome to NB! ' + '!\n\nYour instructor has addded you to their class "' + nb_class.class_name + '"' + 
+        '\n\nPlease click on this link to set a password, enter any personal information, and join the class.\n' + link + 
+        '\n\nIf you believe that this is a mistake, please contact us or change your password on your user settings page.\n'+
+        '\n\nSincerely,\nNB team'
+      };
+
+      transporter.sendMail(mailOptions, function(error, info){
+        if (error) {
+          console.log(error);
+        } else {
+          console.log('Email sent: ' + info.response);
+        }
+      });
+    }
   };
 };

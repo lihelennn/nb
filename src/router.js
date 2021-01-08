@@ -24,6 +24,13 @@ export default new Router({
 
     },
     {
+      path: '/invite',
+      name: 'profile-page',
+      component: () => import('./views/ProfilePage.vue'),
+      props: route => ({ reset_password_id: route.query.id })
+
+    },
+    {
       path: '/profile',
       name: 'profile-page',
       component: () => import('./views/ProfilePage.vue'),
